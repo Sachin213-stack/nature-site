@@ -1,0 +1,9 @@
+packages:
+  - 'apps/*'
+  - 'contracts'
+
+allowBuilds:
+  esbuild: true
+
+overrides:
+  rollup: npm:@rollup/wasm-node@^4.68.2

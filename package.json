@@ -1,0 +1,21 @@
+{
+  "name": "nature-site-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --filter @nature/web build",
+    "typecheck": "pnpm --filter @nature/web typecheck",
+    "lint:web": "pnpm --filter @nature/web lint",
+    "lint:api": "python -m ruff check apps/api",
+    "lint": "pnpm run lint:web && pnpm run lint:api",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "test:web": "pnpm --filter @nature/web test",
+    "test:api": "python -m pytest apps/api",
+    "test": "pnpm run test:web && pnpm run test:api",
+    "dev:web": "pnpm --filter @nature/web dev",
+    "dev:api": "uvicorn apps.api.main:app --reload --port 8000"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.2"
+  }
+}

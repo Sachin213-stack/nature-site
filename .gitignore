@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.venv/
+env/
+venv/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+
+# Testing coverage
+coverage/
+.nyc_output/
+
+# Environment files and credentials
+.env
+*.env.local
+*.env.*.local
+!*.env.example
+
+# Local database volumes
+postgres_data/
+pgdata/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
