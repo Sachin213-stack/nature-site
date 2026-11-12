@@ -1,5 +1,11 @@
 # PROGRESS.md — Nature 3D Site
 
+## Repository
+
+- **Remote:** `https://github.com/Sachin213-stack/nature-site.git`
+- **Branches:** `main`, `c0-repository-scaffold`
+- **Pushed Commit:** `188d5cb058ca310e4cbdf684dba5e2c4cd9b6047`
+
 ## Decisions
 
 | Date       | Component | Decision                                                           | Rationale                                                                                                   |
@@ -65,3 +71,4 @@
 - [x] Fresh clone setup works using README instructions
 - [x] Prettier format check passes (`pnpm run format:check`: all files formatted)
 - [x] ESLint and Ruff linting pass (`pnpm run lint`: all checks passed)
+- [x] Pushed to GitHub repository `Sachin213-stack/nature-site` (branches `main` and `c0-repository-scaffold`)
