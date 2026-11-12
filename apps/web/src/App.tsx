@@ -1,33 +1,62 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Navbar } from './components/navigation/Navbar';
+import { HeroSection } from './components/hero/HeroSection';
+import { SectionShell } from './components/sections/SectionShell';
+import { RecoveryHub } from './components/recovery/RecoveryHub';
+import { Footer } from './components/footer/Footer';
+import { SceneCanvas } from './components/canvas/SceneCanvas';
+import { GuideDrawer } from './components/guide/GuideDrawer';
+import { SECTIONS } from './data/content';
+import { useSiteStore } from './store/useSiteStore';
 
 export const App: React.FC = () => {
+  const setProgress = useSiteStore((s) => s.setProgress);
+
+  // Global scroll listener for whole-page progress
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (scrollHeight > 0) {
+        const p = Math.min(Math.max(window.scrollY / scrollHeight, 0), 1);
+        setProgress(p);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [setProgress]);
+
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center p-6"
-      style={{ backgroundColor: '#F7F5EF', color: '#263128' }}
+      className="min-h-screen relative text-[#263128]"
+      style={{
+        backgroundColor: '#F7F5EF',
+      }}
     >
-      <header className="max-w-xl text-center space-y-4">
-        <h1 className="text-4xl font-extrabold tracking-tight" style={{ color: '#263128' }}>
-          Nature 3D
-        </h1>
-        <p className="text-sm" style={{ color: '#62695F' }}>
-          A scroll-driven 3D exploration of nature loss and recovery. Scaffold established.
-        </p>
-        <div
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs"
-          style={{
-            backgroundColor: '#9CAF8820',
-            border: '1px solid #9CAF8850',
-            color: '#263128',
-          }}
-        >
-          <span
-            className="w-2 h-2 rounded-full animate-pulse"
-            style={{ backgroundColor: '#9CAF88' }}
-          />
-          apps/web scaffold operational
-        </div>
-      </header>
+      {/* Fixed 3D Canvas Background */}
+      <SceneCanvas />
+
+      {/* Main Interactive Website Experience */}
+      <div className="relative z-10 flex flex-col">
+        <Navbar />
+
+        <main className="flex-1 flex flex-col">
+          <HeroSection />
+
+          {/* Six Core Storytelling Sections */}
+          {SECTIONS.map((section) => (
+            <SectionShell key={section.id} content={section} />
+          ))}
+
+          {/* Recovery Hub with Dynamic Read-Tracking Solutions */}
+          <RecoveryHub />
+        </main>
+
+        <Footer />
+      </div>
+
+      {/* Slide-out Grounded AI Guide Drawer */}
+      <GuideDrawer />
     </div>
   );
 };

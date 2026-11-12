@@ -1,0 +1,481 @@
+=== PAGE 1 ===
+Antigravity Implementation Plan
+Ye plan 18 components mein baanta gaya hai. Har component ka ek task card hai jo seedha
+Antigravity ke agent ko diya ja sakta hai. Agent-facing text English mein hai (agents
+English instructions par sabse reliably chalte hain); tumhare liye notes Hinglish mein.
+How to run this in Antigravity
+1. Repo root par AGENTS.md rakho (neeche ka block). Third-party guides ke hisaab se
+Antigravity project rules AGENTS.md se padhta hai (cross-tool format), GEMINI.md
+sirf Antigravity-only overrides ke liye hai, aur split rules .agents/rules/ mein jaate
+hain. Maine official docs open karke ye verify nahi kiya, isliye pehle Antigravity rules
+and workflows docs se paths check kar lena.
+2. Har task card ko ek alag agent task banao. Third-party guide ke hisaab se Manager
+view mein agents parallel chalte hain; parallel tracks neeche Execution map mein hain.
+3. Pehle sirf C0 chalao aur review karo, phir baaki. Kharab scaffold baaki sab cards ko
+kharab karta hai.
+4. Har card ke end mein agent se evidence maango (command output, test names,
+screenshots) aur PROGRESS.md update karwao.
+5. Agent kisi decision par ruk jaaye to wo "Questions for director" mein likhega. Wo
+tumhara kaam hai; agent se guess mat karwana.
+Repo structure
+nature-site/
+  AGENTS.md
+  PROGRESS.md
+  contracts/              shared types and JSON schemas (single source of 
+truth)
+  content/
+    sections/*.md         loss, underground, food, rivers, recovery, cities
+    sources.json          source records
+    recovery.json         solution cards for the recovery hub
+    intro/                hero captions and manifest (director owns)
+    legal/                consent and privacy text (director owns)
+  design/
+    tokens.json           visual decisions, TODO(DIRECTOR) until filled
+    logos/                seven logo SVGs
+Antigravity Plan
+Page 1 of 12
+
+=== PAGE 2 ===
+  apps/
+    web/                  Vite + React + TypeScript
+    api/                  FastAPI
+  corpus/                 short extracts and summaries for retrieval
+  eval/questions.json     30-question grounding eval
+  scripts/                ingest, eval, stt_eval
+  docs/blueprint.md       export of the Blueprint tab
+AGENTS.md
+Copy this block to the repo root.
+# AGENTS.md: Nature 3D Site
+## Project
+A scroll-driven 3D website about nature loss and recovery, with a grounded 
+voice and text guide. Order: hero film, a 10-second animation of seven 
+floating logos, then six sections (loss, underground, food, rivers, recovery, 
+cities), then a footer with a contact form. Every factual claim shows its 
+source.
+## Stack
+Frontend: Vite, React, TypeScript (strict), Tailwind, three, @react-
+three/fiber, @react-three/drei, GSAP with ScrollTrigger, Lenis, Zustand. 
+Backend: FastAPI, SQLAlchemy 2, Alembic, Postgres with pgvector. AI: 
+Anthropic Claude API through the official SDK. Voice: STT and TTS behind 
+adapter interfaces. Package manager: pnpm. Tests: Vitest and pytest.
+## Sources of truth
+- contracts/ defines shared types. Change it only with a note in PROGRESS.md.
+- content/ and docs/blueprint.md hold all user-visible copy, facts and 
+caveats.
+- design/tokens.json holds visual decisions. Any value marked TODO(DIRECTOR) 
+is undecided.
+## Working method
+1. Read the task card fully. Write a short plan: goal, files you will touch, 
+risks.
+2. Work on one component per branch, named cN-short-name, in small commits.
+3. Run the card's Verify checklist. Attach evidence (command output, test 
+names, screenshots) to PROGRESS.md.
+4. If blocked or a decision is missing, stop and add the question to 
+Antigravity Plan
+Page 2 of 12
+
+=== PAGE 3 ===
+PROGRESS.md under Questions for director. Do not guess.
+## Hard rules (DO NOT)
+1. DO NOT invent facts, numbers, copy or sources. Use only content/ and 
+docs/blueprint.md. If something is missing, insert TODO(DIRECTOR) or 
+TODO(RESEARCH).
+2. DO NOT decide names, palette, fonts, 3D art style, narration or tone. Use 
+design/tokens.json placeholders.
+3. DO NOT reword caveats. Render them verbatim and visibly next to the claim 
+they qualify.
+4. DO NOT describe the 73% figure as animals dying. It is the average change 
+in the size of monitored populations.
+5. DO NOT write or imply that trees talk, send warnings or share resources 
+through fungal networks. Say only what content/ says.
+6. DO NOT put API keys or provider calls in the frontend. Keys live in 
+environment variables; commit only .env.example.
+7. DO NOT autoplay audio or request the microphone without a user click. 
+Always show a visible indicator while the mic is live.
+8. DO NOT store raw audio. DO NOT log transcripts unless 
+LOG_TRANSCRIPTS=true.
+9. DO NOT let a section specialist retrieve from other sections. Enforce the 
+section filter on the server.
+10. DO NOT add a dependency or asset without recording name, version, licence 
+and reason in PROGRESS.md.
+11. DO NOT edit another component's files, or change a contract, outside your 
+task card.
+12. DO NOT add features outside the task card.
+13. DO NOT skip prefers-reduced-motion support.
+14. DO NOT mark a task done without running its Verify checklist and 
+attaching evidence.
+## Definition of done
+Build, typecheck, lint and tests pass. The Verify checklist is ticked with 
+evidence. PROGRESS.md lists decisions, dependencies added and open questions.
+Shared contracts
+Parallel agents depend on these shapes. They live in contracts/ and nobody changes
+them silently.
+Antigravity Plan
+Page 3 of 12
+
+=== PAGE 4 ===
+type SectionId = 'loss' | 'underground' | 'food' | 'rivers' | 'recovery' | 
+'cities';
+type SourceStatus = 'verified' | 'secondary' | 'pending';
+interface SourceRecord {
+  id: string; title: string; publisher: string; url: string;
+  published: string; retrieved: string; licence: string;
+  figure: string; caveat: string; status: SourceStatus; recheckBy: string;
+}
+interface Chunk { id: string; sourceId: string; section: SectionId | 'site'; 
+text: string }
+interface SiteState {
+  progress: number;                               // 0 to 1, whole page
+  activeSection: SectionId | 'intro' | 'footer';
+  sectionProgress: Record<SectionId, number>;     // 0 to 1 each
+  readSections: SectionId[];
+  voice: 'idle' | 'listening' | 'thinking' | 'speaking';
+  mode: 'guide' | 'specialist';
+  specialist: SectionId | null;
+}
+// agent tools
+search_docs({ query: string, section?: SectionId }) -> { chunks: Chunk[], 
+sources: SourceRecord[] }
+navigate_to({ section: SectionId })
+start_brief({ section: SectionId })
+hand_off({ section: SectionId })
+return_to_guide({ summary: string })
+// websocket messages
+client -> server: audio_chunk | text | interrupt | context
+server -> client: transcript_partial | transcript_final | reply_text_delta | 
+reply_audio_chunk | navigate | sources | state | error
+Antigravity Plan
+Page 4 of 12
+
+=== PAGE 5 ===
+Inputs only you can provide
+Execution map
+Tracks A, B and D can start right after C0 and C1. Track C starts after C2.
+Input
+Needed by
+If missing, the agent must
+docs/blueprint.md (Blueprint tab
+exported as Markdown)
+C1, C6, C10
+Stop. Content comes only from
+here
+design/tokens.json with real values
+C1, C5, C6,
+C7
+Use neutral TODO(DIRECTOR)
+placeholders
+Seven logo SVGs
+C5
+Use numbered neutral circles
+Hero video and captions
+C4
+Use a placeholder poster and an
+empty VTT
+20 recorded Hinglish questions with
+expected transcripts
+C13
+Report the STT eval as blocked
+Consent and privacy text
+C15
+Use placeholders marked
+TODO(DIRECTOR)
+Sources for Cities and for Underground
+actions (research pending)
+C6, C7
+Render TODO(RESEARCH), never
+fill
+Component
+Depends
+on
+Track
+Blocked by director
+input
+C0 Repo scaffold
+none
+start
+here
+No
+C1 Contracts and content config
+C0
+A
+Partly (blueprint,
+tokens)
+C2 Scroll engine and global state
+C0, C1
+A
+No
+C3 3D canvas and scene manager
+C2
+A
+No
+C4 Hero film player
+C1
+C
+Yes (video, captions)
+C5 Seven-logo animation and nav
+C2
+C
+Yes (logos)
+Antigravity Plan
+Page 5 of 12
+
+=== PAGE 6 ===
+Task cards: foundation and frontend
+Har card ka format: Goal, Depends on, Build, DO NOT, Verify. Card ko jaisa hai waisa agent
+ko paste karo.
+C0 Repo scaffold and tooling
+Goal: A monorepo skeleton that builds, lints and runs, with no feature code.
+Depends on: nothing.
+Build:
+1. Create the repo structure from this plan. apps/web: Vite, React, TypeScript strict,
+Tailwind. apps/api: FastAPI, pydantic settings, SQLAlchemy 2, Alembic.
+Component
+Depends
+on
+Track
+Blocked by director
+input
+C6 Section shell
+C1, C2
+C
+Partly
+C7 Six scenes
+C3, C6
+C
+Yes (art style)
+C8 Recovery redirect and read
+tracking
+C6
+C
+No
+C9 Source registry and citation UI
+C1
+B
+No
+C10 Knowledge ingestion and
+retrieval
+C9
+B
+Yes (blueprint)
+C11 Guide agent (text)
+C10
+B
+No
+C12 Section specialists and hand-off
+C11, C6
+B
+No
+C13 Voice gateway
+C11
+B
+Yes (STT test audio)
+C14 Voice UI
+C13, C2
+B
+No
+C15 Footer, contact form, privacy
+C0
+D
+Yes (legal text)
+C16 Accessibility, performance,
+mobile
+C2 to C15
+final
+No
+C17 Deploy, CI, docs
+all
+final
+No
+Antigravity Plan
+Page 6 of 12
+
+=== PAGE 7 ===
+2. docker-compose with Postgres and the pgvector extension. A GET /health
+endpoint.
+3. ESLint, Prettier, tsc, ruff, pytest, Vitest wired to scripts in the root package.json.
+4. .env.example for web and api, a README quickstart, and a PROGRESS.md
+template with sections: Decisions, Dependencies added, Questions for director,
+Evidence.
+DO NOT: add feature code, extra libraries, or real keys.
+Verify:
+C1 Contracts and content config
+Goal: One source of truth for types, content format and design tokens.
+Depends on: C0.
+Build:
+1. contracts/: TypeScript types and JSON Schemas for SourceRecord, Chunk,
+SiteState and the websocket messages. Generate or mirror pydantic models for
+the API and add a test that both stay in sync.
+2. content/sections/<id>.md with frontmatter: id, title, order, sourceIds, yourMove
+(earlier, now), briefing, and a body. Validate with zod at build time.
+3. Transcribe content from docs/blueprint.md into content/sections/*.md and
+content/sources.json, word for word, including every caveat and source status.
+4. design/tokens.json with every value set to TODO(DIRECTOR).
+DO NOT: invent or reword copy, change any figure, or fill TODO(DIRECTOR) values.
+Verify:
+pnpm -C apps/web build and typecheck pass
+pytest passes and docker compose up db starts Postgres
+GET /health returns 200
+A fresh clone runs using the README only
+Validation fails when a fact has no sourceId
+Validation fails when a section has no caveat field
+Schema and pydantic sync test passes
+A diff check shows figures in content/ match docs/blueprint.md
+Antigravity Plan
+Page 7 of 12
+
+=== PAGE 8 ===
+C2 Scroll engine and global state
+Goal: Smooth scrolling with one global progress value and a progress value per
+section.
+Depends on: C0, C1.
+Build:
+1. Lenis with autoRaf off, driven from gsap.ticker, synced with ScrollTrigger.
+2. Zustand store exactly as SiteState in contracts.
+3. A section registry (id to element and scroll range) and a hook
+useSectionProgress(id) .
+4. scrollToSection(id) with easing. Under prefers-reduced-motion: no smooth
+scroll and no pinning.
+5. A debug overlay at ?debug=1 showing progress, active section and fps.
+DO NOT: run more than one animation frame loop, use setInterval for scroll, or put any
+3D here.
+Verify:
+C3 3D canvas and scene manager
+Goal: One fixed R3F Canvas behind the page, mounting scenes by active section.
+Depends on: C2.
+Build:
+1. A single fixed <Canvas> , pointer-events none unless a scene opts in.
+2. SceneManager reads the store and mounts the active scene and its neighbours
+only. Scene API: Scene({ progress, quality, active }) .
+3. A shared camera rig driven by progress, a loader using useProgress , and a
+quality tier flag (high or low) in the store.
+4. DPR capped at 1.5 on desktop and 1 on mobile. Dispose geometries, materials and
+textures on unmount.
+5. One neutral placeholder scene per section, labelled with its section id.
+Overlay shows progress rising from 0 to 1 with no jumps
+scrollToSection lands within 2 px of the target
+Reduced-motion mode disables smoothing (test attached)
+Performance capture shows no long frames while scrolling on desktop
+Antigravity Plan
+Page 8 of 12
+
+=== PAGE 9 ===
+DO NOT: add a second Canvas, import heavy models, or leave listeners attached after
+unmount.
+Verify:
+C4 Hero film player
+Goal: The intro film, skippable, silent by default, as specified.
+Depends on: C1.
+Build:
+1. A <HeroFilm> playing a pre-rendered video from content/intro/manifest.json, in
+WebM and MP4, with playsInline , a poster and preload metadata.
+2. Muted autoplay with WebVTT captions from content/intro/captions.vtt. Sound
+turns on only after a user click.
+3. A Skip control available at all times. On end or skip, emit hero:ended to the store.
+4. Reduced-motion or data-saver: show the poster and a Continue button.
+DO NOT: autoplay with sound, write the narration or caption text, or block scrolling
+after the film ends.
+Verify:
+C5 Seven-logo animation and navigation
+Goal: A 10-second animation of seven floating logos that then settle into the
+navigation.
+Depends on: C2.
+Build:
+1. Seven SVG slots from design/logos in this order: loss, underground, food, rivers,
+recovery, cities, your-move. Placeholders are numbered neutral circles.
+After 10 cycles through all sections, renderer.info.memory is stable
+Window resize works and the console has no warnings
+Placeholder scenes switch in step with scroll
+No sound before a click
+Skip works at any moment and hero:ended fires once
+Reduced-motion path works
+Plays inline on iOS Safari
+Antigravity Plan
+Page 9 of 12
+
+=== PAGE 10 ===
+2. A GSAP timeline of 10 seconds in total: staggered float in, gentle drift, then settle
+into nav positions. Logos only, no text.
+3. Emit logos:done . A click skips. Nav items call scrollToSection and show the
+active state from the store.
+4. Assumption A5, director may change it: the your-move logo opens a drawer
+listing the Your Move panels of loss, underground, food, rivers and cities.
+DO NOT: add any text to the animation, use video for it, or exceed 10 seconds by more
+than 0.2 s.
+Verify:
+C6 Section shell
+Goal: One reusable layout that renders any section from its content file.
+Depends on: C1, C2.
+Build:
+1. <SectionShell id> renders title, body and fact blocks from
+content/sections/<id>.md. Each fact shows its SourceChip (the chip component
+comes from C9; use a stub until then).
+2. Caveats render in a distinct block, verbatim and always visible.
+3. YourMovePanel with two tabs, Earlier and Now, on every section except recovery.
+A Read in detail button (wired later by C12).
+4. Semantic HTML (section, h2), selectable text, and a contrast-safe backing over
+the canvas using tokens.
+5. A TODO(RESEARCH) block for any pending content, never filled by the agent.
+DO NOT: hardcode content in components, hide caveats behind a click, or edit text.
+Verify:
+Measured timeline duration is logged and is 10 s plus or minus 0.2
+Skip works and nav is keyboard operable
+Nav links scroll to the correct sections
+All six sections render from content files
+Every fact has at least one chip
+Recovery has no Your Move panel
+axe reports zero critical issues
+Antigravity Plan
+Page 10 of 12
+
+=== PAGE 11 ===
+C7 Section scenes (six sub-tasks)
+One agent per scene. Visual style is undecided, so use the placeholder palette from
+design/tokens.json. Each scene must support a low-quality tier. Budget: 150 draw calls or
+fewer and 2 MB of assets or less per scene (starting numbers, tune after measuring).
+7a Loss: populations shown as clusters of instanced particles. Show the decline as
+clusters shrinking on average, never as 73% of particles vanishing. Chips for
+freshwater, land and ocean highlight their clusters using values from content.
+7b Underground: a root and fungal network as line geometry with a pulse shader.
+Clicking a node lights its connected edges. Labels say mycorrhizal fungi network,
+nothing about trees communicating, warning or sharing.
+7c Food: terrain tiles with a toggle between Today and Nature-friendly, morphing
+between them. Use only figures from content. The Nature-friendly state is labelled
+illustrative and carries no invented percentages.
+7d Rivers: a shader river with a dam and a slider to remove it, plus fish particles. When
+the slider reaches 100%, show the content caveat that recovery is not instant.
+7e Recovery: a tiger silhouette made of particles, plus count-ups from content (India
+2,967 to 3,682; global about 3,200 to about 5,700). Never imply the problem is solved.
+7f Cities: a grey skyline that greens up, labelled illustrative. Its facts are
+TODO(RESEARCH) until the director provides sources.
+DO NOT (all scenes): add numbers not in content, load heavy models, or skip the low-
+quality tier.
+Verify (each scene):
+C8 Recovery redirect and read tracking
+Goal: Now-what from any Your Move leads to the recovery solutions that match what
+the user read.
+Depends on: C6.
+Build:
+1. Mark a section read when scroll is at least 70% and dwell time is at least N
+seconds (config, default 8). Store in the store and sessionStorage.
+Scene follows progress and mounts and unmounts cleanly (memory stable)
+Low-quality tier renders and is selectable
+Every number on screen traces to a content file
+Text alternative provided for screen readers
+Antigravity Plan
+Page 11 of 12
+
+=== PAGE 12 ===
+2. content/recovery.json solution cards: id, forSections, title, body, sourceIds.
+Recovery sorts them by overlap with readSections and shows a line such as
+Because you read: Loss, Food.
+3. The Now tab in each Your Move has a See solutions button that scrolls to
+Recovery and highlights that section's cards.
+DO NOT: send read data to the server, track users, or invent solution cards beyond
+recovery.json.
+Verify:
+Unit tests for read detection and card sorting pass
+Manual flow: read Food, open Now, land on Recovery with Food cards first
+Reload keeps reads within the session
+Antigravity Plan
+Page 12 of 12
+
